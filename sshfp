@@ -76,15 +76,27 @@ if [[ "$HOST_SSH_DIR" == "" ]]; then # only do this if no dir was specified
     fi # check for PLATFORM
 fi # check for HOST_SSH_DIR being set
 
+# Get our SSHFP for our RSA PubKey
 if [[ -r "${HOST_SSH_DIR}/${RSA_KEYFILE}" ]]; then # we can read the file
+    # get our RSA PubKey's SSHFP
     SSHFP1=`cat ${HOST_SSH_DIR}/${RSA_KEYFILE} | cut -d ' ' -f 2 | openssl base64 -d -A | openssl sha1`
+    # linux hosts need some cleanup
+    if [[ "$PLATFORM" == "linux" ]]; then
+	SSHFP1=`cat ${SSHFP1} | cut -d ' ' -f 2`
+    fi
     echo "`hostname` IN SSHFP 1 1 ${SSHFP1}"
 else
     echo "Error: Unable to locate the SSHFP 1 1 (RSA) key."
 fi
 
+# Get our SSHFP for our DSA PubKey
 if [[ -r "${HOST_SSH_DIR}/${DSA_KEYFILE}" ]]; then # we can read the file
+    # get our DSA Key's SSHFP
     SSHFP2=`cat ${HOST_SSH_DIR}/${DSA_KEYFILE} | cut -d ' ' -f 2 | openssl base64 -d -A | openssl sha1`
+    # Linux needs a little cleanup
+    if [[ "$PLATFORM" == "linux" ]]; then
+	SSHFP2=`cat ${SSHFP2} | cut -d ' ' -f 2`
+    fi
     echo "`hostname` IN SSHFP 2 1 ${SSHFP2}"
 else
     echo "Error: Unable to locate the SSHFP 2 1 (DSA) key."
