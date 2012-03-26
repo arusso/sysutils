@@ -6,43 +6,85 @@
 # date:     23-March-2012
 # notes:    Tested on OSX 10.7 and RHEL6
 ###################################################################
+# Define Usage Function
+function usage {
+    echo "usage: sshfp [-h] [-d dir] [-1 rsa_keyfile.pub] [-2 dsa_keyfile.pub]"
+    echo
+    echo " Displays the SSHFP entries for the host"
+    echo 
+    echo "       -h : print usage"
+    echo "       -d : specify directory to look for keys"
+    echo "       -1 : specify RSA key filename"
+    echo "       -2 : specify DSA key filename"
+    echo 
+}
+
 
 # Error Codes
 ERR_BAD_DIR=1  # invalid directory passed
 ERR_UNKNOWN=2  # unknown platform type
 
-# Variables
+# Variables to keep track of the file locations
+HOST_SSH_DIR=""
+RSA_KEYFILE="ssh_host_rsa_key.pub"
+DSA_KEYFILE="ssh_host_dsa_key.pub"
+
+# Parse Arguments
+while getopts ":hd:1:2:" flag
+do
+    case "$flag" in
+	'h')
+	    # print usage
+	    usage
+	    exit 0
+	    ;;
+	'd')  # a directory was specified
+	    if [[ -d "$OPTARG" ]]; then # directory is valid
+		HOST_SSH_DIR="$OPTARG"
+	    else
+		echo "Invalid directory specified (${OPTARG})"
+		exit ERR_BAD_DIR
+	    fi
+	    ;;
+	1) # we dont error check here, since we cant guarantee the dir has been set
+	    RSA_KEYFILE="$OPTARG"  
+	    ;;
+	2) # we dont error check here, since we cant guarantee the dir has been set
+	    DSA_KEYFILE="$OPTARG"
+	    ;;
+	'\?')
+	    usage
+	    exit 0
+	    ;;
+    esac
+done
+
+# Variables used to determine the platform
 UNAME=`uname`
 PLATFORM='Unknown'
 
-if [[ $# -gt 0 ]]; then # we got an arg, lets see if its a valid directory
-    if [[ -d "$1" ]]; then # we got a good dir, lets use it
-	HOST_SSH_DIR="$1"
+if [[ "$HOST_SSH_DIR" == "" ]]; then # only do this if no dir was specified
+    if [[ "$UNAME" == "Linux" ]]; then
+	PLATFORM='linux'
+	HOST_SSH_DIR='/etc/ssh/'
+    elif [[ "$UNAME" == "Darwin" ]]; then
+	PLATFORM='osx'
+	HOST_SSH_DIR='/etc/'
     else
-	echo "Passed a non-existant directory ${1}"
-	exit ERR_BAD_DIR
-    fi  
-elif [[ "$UNAME" == "Linux" ]]; then
-    PLATFORM='linux'
-    HOST_SSH_DIR='/etc/ssh/'
-elif [[ "$UNAME" == "Darwin" ]]; then
-    PLATFORM='osx'
-    HOST_SSH_DIR='/etc/'
-else
-    echo "Unable to continue, unknown platform '${UNAME}' detected"
-    exit ERR_UNKNOWN
-fi
+	echo "Unable to continue, unknown platform '${UNAME}' detected"    
+	exit ERR_UNKNOWN
+    fi # check for PLATFORM
+fi # check for HOST_SSH_DIR being set
 
-if [[ -r "${HOST_SSH_DIR}/ssh_host_rsa_key.pub" ]]; then # we can read the file
-    
-    SSHFP1=`cat ${HOST_SSH_DIR}ssh_host_rsa_key.pub | cut -d ' ' -f 2 | openssl base64 -d -A | openssl sha1`
+if [[ -r "${HOST_SSH_DIR}/${RSA_KEYFILE}" ]]; then # we can read the file
+    SSHFP1=`cat ${HOST_SSH_DIR}/${RSA_KEYFILE} | cut -d ' ' -f 2 | openssl base64 -d -A | openssl sha1`
     echo "`hostname` IN SSHFP 1 1 ${SSHFP1}"
 else
     echo "Error: Unable to locate the SSHFP 1 1 (RSA) key."
 fi
 
-if [[ -r "${HOST_SSH_DIR}/ssh_host_dsa_key.pub" ]]; then # we can read the file
-    SSHFP2=`cat ${HOST_SSH_DIR}ssh_host_dsa_key.pub | cut -d ' ' -f 2 | openssl base64 -d -A | openssl sha1`
+if [[ -r "${HOST_SSH_DIR}/${DSA_KEYFILE}" ]]; then # we can read the file
+    SSHFP2=`cat ${HOST_SSH_DIR}/${DSA_KEYFILE} | cut -d ' ' -f 2 | openssl base64 -d -A | openssl sha1`
     echo "`hostname` IN SSHFP 2 1 ${SSHFP2}"
 else
     echo "Error: Unable to locate the SSHFP 2 1 (DSA) key."
