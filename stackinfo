@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# Author:  Aaron Russo <arusso@berkeley.edu>
+# Date:    30-Nov-2012
+# Purpose: Utility to gather information relevant to thread count and stack size
+#          for a particular user or the entire system.
+# Usage:
+#
+
+FIND_CMND="find /proc -maxdepth 1 -regex '^/proc/[0-9]+$'"
+
+# process arguments
+while getopts ":u:vcmath" opt; do
+  case $opt in
+    u)
+      user=$OPTARG
+      getent passwd $user >/dev/null 2>/dev/null
+      if [ $? -eq 2 ]; then echo "invalid user specified"; exit 2; fi
+      ;;
+    v|c|m|a|t)
+      output=$opt
+      ;;
+    \?|h)
+      echo "usage: $0 [-u <username>] [<-v|-c|-m|-a|-t>] [-h]" >&2
+      echo ""
+      echo "    -v  verbose (print all output)"
+      echo "    -c  print thread count"
+      echo "    -m  print max stack size"
+      echo "    -a  print avg stack size"
+      echo "    -t  print total stack size"
+      echo "    -h  print this message"
+      echo ""
+      exit 0
+      ;;
+    *)
+      echo "invalid parameter '${opt}'"
+      exit 1;
+    esac
+done
+
+# keep some bean counters
+total=0
+max=0
+count=0
+
+# if we have some
+if [ "${user}" != "" ]; then
+  cmnd="${FIND_CMND} -user \"${user}\""
+else
+  cmnd="${FIND_CMND}"
+fi
+
+for p in `eval ${cmnd}`;
+do 
+  for t in `ls ${p}/task 2>/dev/null`;
+  do
+    count=`expr $count + 1`
+    stack=`cat ${p}/task/${t}/statm | cut -d ' ' -f 6 2>/dev/null`
+    total=`expr ${total} + ${stack}`
+    [ $max -lt $stack ] && max=$stack
+  done
+done
+
+if [ $count -eq 0 ]; then
+    echo "no threads found for user ${user}"
+    exit 3
+fi
+
+case $output in
+  v|"")
+    avg=$(($total/$count))
+    printf '%15s%12s%12s%12s%16s\n' "user" "threads" "max sz" "avg sz" "tot sz" 
+    printf '%15s%12s%12s%12s%16s\n' "${user}" "${count}" "${max}" "${avg}" "${total}"
+    ;;
+  c)
+    echo $count
+    ;;
+  m)
+    echo $max
+    ;;
+  a)
+    echo $(($total/$count)) 2>/dev/null
+    ;;
+  t)
+    echo $total
+    ;;
+esac 
+  
